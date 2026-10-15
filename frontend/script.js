@@ -1,5 +1,6 @@
 
-const API_URL = "https://student-management-api.onrender.com/api/students";
+const API_URL = "http://localhost:5000/api/students";
+
 let students = [];
 
 const form = document.getElementById("studentForm");
