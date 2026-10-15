@@ -1,0 +1,71 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Management System</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="container">
+    <h1>Student Management System</h1>
+    <p>Manage Student Information</p>
+
+    <h2>Add / Update Student</h2>
+
+    <form id="studentForm">
+      <input type="hidden" id="mongoId">
+
+      <input type="text" id="studentId"
+        placeholder="Student ID" required>
+
+      <input type="text" id="name"
+        placeholder="Student Name" required>
+
+      <input type="email" id="email"
+        placeholder="Email Address" required>
+
+      <input type="text" id="department"
+        placeholder="Department" required>
+
+      <input type="number" id="semester"
+        placeholder="Semester" min="1" required>
+
+      <input type="text" id="contact"
+        placeholder="Contact Number">
+
+      <button type="submit">Save Student</button>
+      <button type="button" onclick="resetForm()">
+        Clear
+      </button>
+    </form>
+
+    <h2>Student Records</h2>
+
+    <input type="text" id="search"
+      placeholder="Search by name or student ID"
+      oninput="searchStudents()">
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Student ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Department</th>
+            <th>Semester</th>
+            <th>Contact</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="studentTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
