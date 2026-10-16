@@ -1,5 +1,5 @@
 
-const API_URL = "https://student-management-system-1-bdv2.onrender.com.onrender.com/api/students";
+const API_URL = "https://student-management-system-1-bdv2.onrender.com/api/students";
 let students = [];
 
 const form = document.getElementById("studentForm");
