@@ -4,7 +4,11 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 require("dotenv").config();
 
+
 const studentRoutes = require("./routes/studentRoutes");
+
+// NEW: MCP route
+const mcpRoutes = require("./mcp/mcpRoutes");
 
 const app = express();
 
@@ -20,6 +24,9 @@ app.get("/", (req, res) => {
 app.use("/api/students", studentRoutes);
 
 const PORT = process.env.PORT || 5000;
+
+// NEW: MCP endpoint
+app.use("/mcp", mcpRoutes);
 
 // MongoDB Atlas Connection
 mongoose.connect(process.env.MONGODB_URI)
