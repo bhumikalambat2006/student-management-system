@@ -14,7 +14,7 @@ async function testMcp() {
   });
 
   const transport = new StreamableHTTPClientTransport(
-    new URL("http://localhost:5000/mcp"),
+    new URL("https://student-management-system-1-bdv2.onrender.com/mcp"),
     {
       requestInit: {
         headers: {
@@ -36,12 +36,35 @@ async function testMcp() {
       tools.tools.map(t => t.name)
     );
 
-    const result = await client.callTool({
+   
+    // Test 1: Count students
+    const count = await client.callTool({
       name: "count_students",
       arguments: {}
     });
 
-    console.log("Result:", result.content);
+    console.log("\nTEST 1: Count Students");
+    console.log(count.content);
+
+    // Test 2: Search students
+const search = await client.callTool({
+  name: "search_students",
+  arguments: {
+    query: "402"
+  }
+});
+
+console.log("Search Result:", search.content);
+
+    // Test 3: Department statistics
+    const stats = await client.callTool({
+      name: "department_statistics",
+      arguments: {}
+    });
+
+    console.log("\nTEST 3: Department Statistics");
+    console.log(stats.content);
+
   } finally {
     await client.close();
   }
