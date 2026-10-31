@@ -2,3 +2,5 @@
 **/.env
 .env.*
 !.env.example
+remote-mcp/.env
+remote-mcp/node_modules/
