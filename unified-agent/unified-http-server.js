@@ -1,4 +1,4 @@
-
+const fs = require("fs");
 require("dotenv").config({
   path: require("path").join(__dirname, ".env")
 });
@@ -208,7 +208,16 @@ async function connectAllServers() {
     githubExecutable,
     ["stdio", "--toolsets=all"]
   );
+// Copy Gmail OAuth files from Render Secret Files.
+fs.copyFileSync(
+  "/etc/secrets/gcp-oauth.keys.json",
+  path.join(__dirname, "gcp-oauth.keys.json")
+);
 
+fs.copyFileSync(
+  "/etc/secrets/credentials.json",
+  path.join(__dirname, "credentials.json")
+);
   console.error("Connecting to Gmail MCP...");
 
   const gmailServerPath = path.join(
