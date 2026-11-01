@@ -1,13 +1,17 @@
 
 const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
 
 require("dotenv").config({
   path: path.join(__dirname, ".env")
 });
 
 const express = require("express");
+
+const {
+  auth,
+  requiredScopes
+} = require("express-oauth2-jwt-bearer");
 
 const { Server } = require("@modelcontextprotocol/sdk/server/index.js");
 
@@ -27,12 +31,88 @@ const manager = new MCPClientManager();
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = "0.0.0.0";
-const API_KEY = process.env.UNIFIED_MCP_API_KEY;
+
+const AUTH0_DOMAIN = (process.env.AUTH0_DOMAIN || "")
+  .replace(/^https?:\/\//, "")
+  .replace(/\/+$/, "");
+
+const AUTH0_AUDIENCE = process.env.AUTH0_AUDIENCE;
+
+const AUTH0_ISSUER = AUTH0_DOMAIN
+  ? `https://${AUTH0_DOMAIN}/`
+  : "";
+
+const MCP_RESOURCE =
+    "https://unified-mcp-agent.onrender.com";
+
+const MCP_METADATA_URL =
+  "https://unified-mcp-agent.onrender.com/.well-known/oauth-protected-resource/mcp";
 
 let httpServer;
 let shuttingDown = false;
 
+// Basic CORS support for MCP clients.
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Authorization, Content-Type, Accept, MCP-Protocol-Version, MCP-Session-Id"
+  );
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, DELETE, OPTIONS"
+  );
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
+
 app.use(express.json({ limit: "1mb" }));
+
+// Auth0 JWT validation.
+const validateAccessToken = auth({
+  issuerBaseURL: AUTH0_ISSUER,
+  audience: AUTH0_AUDIENCE,
+  tokenSigningAlg: "RS256"
+});
+
+// Require the MCP access permission.
+const requireMcpScope = requiredScopes("mcp:access");
+
+// OAuth Protected Resource Metadata.
+const protectedResourceMetadata = {
+  resource: MCP_RESOURCE,
+  authorization_servers: [AUTH0_ISSUER],
+  scopes_supported: ["mcp:access"],
+  bearer_methods_supported: ["header"]
+};
+
+// Metadata discovery at the root.
+app.get(
+  "/.well-known/oauth-protected-resource",
+  (req, res) => {
+    res.json(protectedResourceMetadata);
+  }
+);
+
+// Metadata discovery for the /mcp resource.
+app.get(
+  "/.well-known/oauth-protected-resource/mcp",
+  (req, res) => {
+    res.json(protectedResourceMetadata);
+  }
+);
+
+// Health-check endpoint.
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    service: "unified-mcp-agent"
+  });
+});
 
 // Create the unified MCP server.
 function createMCPServer() {
@@ -103,79 +183,92 @@ function createMCPServer() {
   return server;
 }
 
-// Protect the MCP endpoint with a private API key.
-function authenticate(req, res, next) {
-  const authorization = req.headers.authorization || "";
-
-  const suppliedKey = authorization.startsWith("Bearer ")
-    ? authorization.slice(7)
-    : "";
-
-  const expected = Buffer.from(API_KEY || "");
-  const supplied = Buffer.from(suppliedKey);
-
-  if (
-    expected.length !== supplied.length ||
-    !crypto.timingSafeEqual(expected, supplied)
-  ) {
-    return res.status(401).json({
-      error: "Unauthorized"
-    });
-  }
-
-  next();
-}
-
-// Health-check endpoint.
-app.get("/health", (req, res) => {
-  res.json({
-    status: "ok",
-    service: "unified-mcp-agent"
-  });
-});
-
 // MCP endpoint: stateless Streamable HTTP.
-app.post("/mcp", authenticate, async (req, res) => {
-  const server = createMCPServer();
+app.post(
+  "/mcp",
+  validateAccessToken,
+  requireMcpScope,
+  async (req, res) => {
+    const server = createMCPServer();
 
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined
-  });
-
-  try {
-    await server.connect(transport);
-
-    res.on("finish", () => {
-      server.close().catch(error => {
-        console.error("MCP cleanup error:", error.message);
-      });
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined
     });
 
-    await transport.handleRequest(req, res, req.body);
+    try {
+      await server.connect(transport);
 
-  } catch (error) {
-    console.error("MCP HTTP request failed:", error.message);
-
-    if (!res.headersSent) {
-      res.status(500).json({
-        error: "MCP request failed"
+      res.on("finish", () => {
+        server.close().catch(error => {
+          console.error("MCP cleanup error:", error.message);
+        });
       });
-    }
 
-    await server.close().catch(() => {});
+      await transport.handleRequest(req, res, req.body);
+
+    } catch (error) {
+      console.error(
+        "MCP HTTP request failed:",
+        error.message
+      );
+
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: "MCP request failed"
+        });
+      }
+
+      await server.close().catch(() => {});
+    }
   }
-});
+);
 
 // Stateless mode does not support GET or DELETE.
-app.get("/mcp", authenticate, (req, res) => {
-  res.status(405).json({
-    error: "GET is not supported in stateless mode."
-  });
-});
+app.get(
+  "/mcp",
+  validateAccessToken,
+  requireMcpScope,
+  (req, res) => {
+    res.status(405).json({
+      error: "GET is not supported in stateless mode."
+    });
+  }
+);
 
-app.delete("/mcp", authenticate, (req, res) => {
-  res.status(405).json({
-    error: "DELETE is not supported in stateless mode."
+app.delete(
+  "/mcp",
+  validateAccessToken,
+  requireMcpScope,
+  (req, res) => {
+    res.status(405).json({
+      error: "DELETE is not supported in stateless mode."
+    });
+  }
+);
+
+// Handle OAuth authentication errors.
+app.use((error, req, res, next) => {
+  console.error("Request authentication error:", error.message);
+
+  if (req.path === "/mcp") {
+    res.setHeader(
+      "WWW-Authenticate",
+      `Bearer resource_metadata="${MCP_METADATA_URL}"`
+    );
+  }
+
+  const status = error.status || error.statusCode || 500;
+
+  if (status === 401 || status === 403) {
+    return res.status(status).json({
+      error: status === 401
+        ? "Unauthorized: valid Auth0 access token required."
+        : "Forbidden: mcp:access scope required."
+    });
+  }
+
+  return res.status(500).json({
+    error: "Internal server error."
   });
 });
 
@@ -253,7 +346,8 @@ async function connectAllServers() {
 
   console.error("Preparing Gmail OAuth files...");
 
-  const gmailCredentialsDirectory = prepareGmailCredentials();
+  const gmailCredentialsDirectory =
+    prepareGmailCredentials();
 
   console.error("Connecting to Gmail MCP...");
 
@@ -305,10 +399,12 @@ async function shutdown() {
 // Start the HTTP server.
 async function main() {
   try {
-    if (!API_KEY || API_KEY.length < 32) {
-      throw new Error(
-        "UNIFIED_MCP_API_KEY must contain at least 32 characters."
-      );
+    if (!AUTH0_DOMAIN) {
+      throw new Error("AUTH0_DOMAIN is missing.");
+    }
+
+    if (!AUTH0_AUDIENCE) {
+      throw new Error("AUTH0_AUDIENCE is missing.");
     }
 
     await connectAllServers();
@@ -319,7 +415,11 @@ async function main() {
       );
 
       console.error(
-        `MCP endpoint: http://localhost:${PORT}/mcp`
+        `MCP endpoint: https://unified-mcp-agent.onrender.com/mcp`
+      );
+
+      console.error(
+        `Auth0 issuer: ${AUTH0_ISSUER}`
       );
     });
 
