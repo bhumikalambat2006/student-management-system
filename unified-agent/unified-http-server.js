@@ -1,11 +1,13 @@
+
 const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
+
 require("dotenv").config({
-  path: require("path").join(__dirname, ".env")
+  path: path.join(__dirname, ".env")
 });
 
 const express = require("express");
-const crypto = require("crypto");
-const path = require("path");
 
 const { Server } = require("@modelcontextprotocol/sdk/server/index.js");
 
@@ -88,9 +90,7 @@ function createMCPServer() {
         );
       }
 
-      console.error(
-        `Executing ${serverName}.${toolName}`
-      );
+      console.error(`Executing ${serverName}.${toolName}`);
 
       return manager.callTool(
         serverName,
@@ -154,10 +154,7 @@ app.post("/mcp", authenticate, async (req, res) => {
     await transport.handleRequest(req, res, req.body);
 
   } catch (error) {
-    console.error(
-      "MCP HTTP request failed:",
-      error.message
-    );
+    console.error("MCP HTTP request failed:", error.message);
 
     if (!res.headersSent) {
       res.status(500).json({
@@ -182,6 +179,52 @@ app.delete("/mcp", authenticate, (req, res) => {
   });
 });
 
+// Copy and verify Gmail OAuth files.
+function prepareGmailCredentials() {
+  const secretDirectory = "/etc/secrets";
+  const targetDirectory = path.join(__dirname, ".gmail-mcp");
+
+  const files = [
+    "gcp-oauth.keys.json",
+    "credentials.json"
+  ];
+
+  // Check that Render Secret Files exist.
+  for (const file of files) {
+    const source = path.join(secretDirectory, file);
+
+    if (!fs.existsSync(source)) {
+      throw new Error(
+        `Gmail Secret File is missing: ${file}`
+      );
+    }
+  }
+
+  // Create a writable directory for Gmail credentials.
+  fs.mkdirSync(targetDirectory, {
+    recursive: true,
+    mode: 0o700
+  });
+
+  // Copy files into the writable directory.
+  for (const file of files) {
+    const source = path.join(secretDirectory, file);
+    const destination = path.join(targetDirectory, file);
+
+    fs.copyFileSync(source, destination);
+
+    if (!fs.existsSync(destination)) {
+      throw new Error(
+        `Gmail credential copy failed: ${file}`
+      );
+    }
+
+    console.error(`Gmail file copied successfully: ${file}`);
+  }
+
+  return targetDirectory;
+}
+
 // Connect all three internal MCP servers.
 async function connectAllServers() {
   if (!process.env.GITHUB_PERSONAL_ACCESS_TOKEN) {
@@ -197,7 +240,6 @@ async function connectAllServers() {
 
   console.error("Connecting to GitHub MCP...");
 
-  // Select the correct executable for the current operating system.
   const githubExecutable =
     process.platform === "win32"
       ? path.join("github-server", "github-mcp-server.exe")
@@ -208,16 +250,11 @@ async function connectAllServers() {
     githubExecutable,
     ["stdio", "--toolsets=all"]
   );
-// Copy Gmail OAuth files from Render Secret Files.
-fs.copyFileSync(
-  "/etc/secrets/gcp-oauth.keys.json",
-  path.join(__dirname, "gcp-oauth.keys.json")
-);
 
-fs.copyFileSync(
-  "/etc/secrets/credentials.json",
-  path.join(__dirname, "credentials.json")
-);
+  console.error("Preparing Gmail OAuth files...");
+
+  const gmailCredentialsDirectory = prepareGmailCredentials();
+
   console.error("Connecting to Gmail MCP...");
 
   const gmailServerPath = path.join(
@@ -232,7 +269,17 @@ fs.copyFileSync(
   await manager.connectCommand(
     "gmail",
     process.execPath,
-    [gmailServerPath]
+    [gmailServerPath],
+    {
+      GMAIL_OAUTH_PATH: path.join(
+        gmailCredentialsDirectory,
+        "gcp-oauth.keys.json"
+      ),
+      GMAIL_CREDENTIALS_PATH: path.join(
+        gmailCredentialsDirectory,
+        "credentials.json"
+      )
+    }
   );
 
   console.error("All three MCP servers connected.");
@@ -260,7 +307,7 @@ async function main() {
   try {
     if (!API_KEY || API_KEY.length < 32) {
       throw new Error(
-        "UNIFIED_MCP_API_KEY must contain at least 32 characters in .env."
+        "UNIFIED_MCP_API_KEY must contain at least 32 characters."
       );
     }
 
