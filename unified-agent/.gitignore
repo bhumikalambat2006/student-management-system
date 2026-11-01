@@ -2,3 +2,7 @@ node_modules/
 .env
 .env.*
 !.env.example
+
+gmail-oauth-credentials.json
+
+gcp-oauth.keys.json

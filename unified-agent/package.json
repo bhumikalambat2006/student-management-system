@@ -11,8 +11,10 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@gongrzhe/server-gmail-autoauth-mcp": "^1.1.11",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "dotenv": "^18.0.9",
+    "mongoose": "^9.11.4",
     "zod": "^4.6.7"
   }
 }
