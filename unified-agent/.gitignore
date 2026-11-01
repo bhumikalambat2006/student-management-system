@@ -6,3 +6,6 @@ node_modules/
 gmail-oauth-credentials.json
 
 gcp-oauth.keys.json
+
+# Ignore downloaded GitHub release archives
+github-server/*.tar.gz
