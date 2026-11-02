@@ -1,5 +1,3 @@
-Claude
-
 'use strict';
  
 const fs = require('fs');
@@ -436,4 +434,3 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
  
 main();
- 
