@@ -1,29 +1,5 @@
 Claude
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Unified http server · JS
 'use strict';
  
 const fs = require('fs');
@@ -461,4 +437,3 @@ process.on('SIGTERM', shutdown);
  
 main();
  
-Claude finished the response
